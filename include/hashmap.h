@@ -1,9 +1,26 @@
 #ifndef HASH_TABLE_H
 #define HASH_TABLE_H
 
-#include <exit_codes.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 typedef struct hash_table hash_table_t;
+
+typedef enum hash_exit
+{
+    /* SUCCESS */
+    E_SUCCESS,
+
+    /* KEY ERRORS*/
+    E_KEY_ALREADY_EXISTS,
+    E_KEY_NOT_FOUND,
+
+    /* NULL ERRORS */
+    E_NULL_PARAMS,
+    E_ALLOC_ERROR
+} exit_code_t;
 
 /**
  * @brief Initialization function for hash_table_t

@@ -1,9 +1,4 @@
-#include <exit_codes.h>
-#include <hashmap.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "hashmap.h"
 
 // Values needed for FNV-1 Hash
 #define FNV_PRIME 0x100000001b3
