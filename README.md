@@ -14,3 +14,4 @@ There is only a single flag for clean building which will delete the build direc
 ```
 
 This can be built without clean flag if not wanted
+### NOTE: v1.1 contains a pthread_mutex and any executable using it must be linked with -pthread during compilation if running Ubuntu version prior to 22.04

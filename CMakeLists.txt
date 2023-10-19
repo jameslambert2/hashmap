@@ -16,3 +16,4 @@ include_directories(SYSTEM include)
 
 add_subdirectory(src)
 add_subdirectory(deps)
+add_subdirectory(tests)

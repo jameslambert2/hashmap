@@ -21,6 +21,7 @@ typedef struct hash_table
     uint64_t items_in_table;
     void (*free_func)(void *);
     void (*print_func)(void *);
+    pthread_mutex_t mut;
 } hash_table_t;
 
 /**
@@ -52,6 +53,7 @@ static uint64_t get_index(const char *key, const hash_table_t *h_table)
     {
         return UINT64_MAX;
     }
+
     uint64_t size = strlen(key); // Check String is NULL Terminated
     uint64_t hash = FNVHash(key, size);
     return (hash % h_table->max_size);
@@ -59,6 +61,11 @@ static uint64_t get_index(const char *key, const hash_table_t *h_table)
 
 data_point_t *make_data_point(const char *key, void *value)
 {
+    if (NULL == key || NULL == value)
+    {
+        return NULL;
+    }
+
     data_point_t *ret_data_point =
         (data_point_t *)calloc(1, sizeof(*ret_data_point));
     if (NULL == ret_data_point)
@@ -77,6 +84,7 @@ exit_code_t hash_insert_hashed_val(hash_table_t *h_table, uint64_t hash,
     {
         return E_NULL_PARAMS;
     }
+
     uint64_t idx = hash % h_table->max_size;
     data_point_t *data = calloc(1, sizeof(data_point_t));
     if (NULL == data)
@@ -87,6 +95,7 @@ exit_code_t hash_insert_hashed_val(hash_table_t *h_table, uint64_t hash,
     data->value = value;
     data->overflow = NULL;
     data->key_hash = hash;
+    pthread_mutex_lock(&h_table->mut);
     if (NULL == h_table->table[idx])
     {
         h_table->table[idx] = data;
@@ -101,7 +110,9 @@ exit_code_t hash_insert_hashed_val(hash_table_t *h_table, uint64_t hash,
         }
         temp->overflow = data;
     }
+
     h_table->items_in_table++;
+    pthread_mutex_unlock(&h_table->mut);
     return E_SUCCESS;
 }
 
@@ -109,12 +120,17 @@ void *hash_search_hashed_val(hash_table_t *h_table, uint64_t hash)
 {
     void *ret_val = NULL;
     data_point_t *temp = NULL;
+
     if ((NULL == h_table))
     {
         goto END;
     }
+
     uint64_t index = hash % h_table->max_size;
+
+    pthread_mutex_lock(&h_table->mut);
     temp = h_table->table[index];
+
     while (NULL != temp)
     {
         if (hash != temp->key_hash)
@@ -127,6 +143,7 @@ void *hash_search_hashed_val(hash_table_t *h_table, uint64_t hash)
             break;
         }
     }
+    pthread_mutex_unlock(&h_table->mut);
 END:
     return ret_val;
 }
@@ -143,6 +160,7 @@ exit_code_t hash_insert(hash_table_t *h_table, const char *key, void *value)
     {
         return E_NULL_PARAMS;
     }
+    pthread_mutex_lock(&h_table->mut);
     if (NULL == h_table->table[idx])
     {
         h_table->table[idx] = data;
@@ -152,6 +170,7 @@ exit_code_t hash_insert(hash_table_t *h_table, const char *key, void *value)
     {
         h_table->free_func(data->value);
         free(data);
+        data = NULL;
         return E_KEY_ALREADY_EXISTS;
     }
     else
@@ -161,6 +180,8 @@ exit_code_t hash_insert(hash_table_t *h_table, const char *key, void *value)
         {
             if (0 == strcmp(key, temp->key))
             {
+                free(data);
+                data = NULL;
                 return E_KEY_ALREADY_EXISTS;
             }
             temp = temp->overflow;
@@ -168,10 +189,11 @@ exit_code_t hash_insert(hash_table_t *h_table, const char *key, void *value)
         temp->overflow = data;
     }
     h_table->items_in_table++;
+    pthread_mutex_unlock(&h_table->mut);
     return E_SUCCESS;
 }
 
-void *hash_search(const hash_table_t *h_table, const char *key)
+void *hash_search(hash_table_t *h_table, const char *key)
 {
     if ((NULL == h_table) || (NULL == key))
     {
@@ -186,6 +208,7 @@ void *hash_search(const hash_table_t *h_table, const char *key)
     {
         return NULL;
     }
+    pthread_mutex_lock(&h_table->mut);
     data_point_t *temp = h_table->table[index];
     while (NULL != temp)
     {
@@ -195,6 +218,7 @@ void *hash_search(const hash_table_t *h_table, const char *key)
         }
         temp = temp->overflow;
     }
+    pthread_mutex_unlock(&h_table->mut);
     if (NULL == temp)
     {
         return NULL;
@@ -211,6 +235,8 @@ exit_code_t hash_remove(hash_table_t *h_table, const char *key)
     uint64_t index = get_index(key, h_table);
     if (NULL != h_table->table[index])
     {
+        pthread_mutex_lock(&h_table->mut);
+
         data_point_t *temp = h_table->table[index]->overflow;
         if (0 == strcmp(key, h_table->table[index]->key))
         {
@@ -220,6 +246,7 @@ exit_code_t hash_remove(hash_table_t *h_table, const char *key)
             }
             free(h_table->table[index]);
             h_table->table[index] = temp;
+            pthread_mutex_unlock(&h_table->mut);
             return E_SUCCESS;
         }
         else
@@ -234,20 +261,28 @@ exit_code_t hash_remove(hash_table_t *h_table, const char *key)
                     {
                         h_table->free_func(temp->value);
                     }
+                    pthread_mutex_unlock(&h_table->mut);
                     free(temp);
                     return E_SUCCESS;
                 }
                 prior = temp;
                 temp = temp->overflow;
             }
+            pthread_mutex_unlock(&h_table->mut);
             return E_KEY_NOT_FOUND;
         }
+        pthread_mutex_unlock(&h_table->mut);
     }
     return E_KEY_NOT_FOUND;
 }
 
 void display(const hash_table_t *h_table)
 {
+    if (NULL == h_table)
+    {
+        return;
+    }
+
     if (NULL == h_table->print_func)
     {
         fprintf(stderr, "No print function provided\n");
@@ -298,6 +333,18 @@ hash_table_t *hash_table_init(uint64_t size, void (*free_func)(void *),
         free(h_table);
         return NULL;
     }
+    int init_check = pthread_mutex_init(&h_table->mut, NULL);
+    if (0 != init_check)
+    {
+        fprintf(stderr, "mutex init failed");
+
+        free(h_table->table);
+        h_table->table = NULL;
+
+        free(h_table);
+        h_table = NULL;
+        return NULL;
+    }
     h_table->free_func = free_func;
     h_table->print_func = print_func;
     h_table->max_size = size;
@@ -329,6 +376,7 @@ exit_code_t hash_table_destroy(hash_table_t *h_table)
     {
         clear_overflow(h_table->table[idx], h_table->free_func);
     }
+    pthread_mutex_destroy(&h_table->mut);
     free(h_table->table);
     free(h_table);
     return E_SUCCESS;
