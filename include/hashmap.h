@@ -1,6 +1,7 @@
 #ifndef HASH_TABLE_H
 #define HASH_TABLE_H
 
+#include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,7 +71,7 @@ void display(const hash_table_t *h_table);
  * @param key a NULL-terminated const char* used for lookup
  * @return void* value associated with the key
  */
-void *hash_search(const hash_table_t *h_table, const char *key);
+void *hash_search(hash_table_t *h_table, const char *key);
 
 /**
  * @brief removes a key value pair from the hash_table_t
