@@ -1,0 +1,3 @@
+[submodule "deps/gtest_submodule"]
+	path = deps/gtest_submodule
+	url = git@github.com:selyunin/gtest_submodule.git
